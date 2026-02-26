@@ -4,9 +4,9 @@ Unit which automatically handle form maximize/restore/minimise/resize for base U
 
 Just add it in uses on any UniGUI form in interface section:
 
-unit FIncidentList;
+`unit MyForm;
 
 interface
 
 uses
-   ..., UniMinimizedForm;
+   ..., UniMinimizedForm;`
