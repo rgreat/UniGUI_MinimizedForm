@@ -12,3 +12,7 @@ interface
 uses
    ..., UniMinimizedForm;
 ```
+
+
+Unit ArrayEx is here: 
+https://github.com/rgreat/TArrayEx
