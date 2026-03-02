@@ -12,47 +12,41 @@ type
 
   TUniForm = class(uniGUIForm.TUniForm)
   private
-    type
-      TScreenResizeData = record
-        MainForm : TUniForm;
-        Event    : TScreenResizeEvent;
-      end;
-    var
+    ButtonMinimize     : TUniToolItem;
+    ButtonRestore      : TUniToolItem;
 
-    ButtonMinimize    : TUniToolItem;
-    ButtonRestore     : TUniToolItem;
+    FOnMinimize        : TNotifyEvent;
+    FOnRestore         : TNotifyEvent;
+    FOnMaximize        : TNotifyEvent;
 
-    FOnMinimize       : TNotifyEvent;
-    FOnRestore        : TNotifyEvent;
-    FOnMaximize       : TNotifyEvent;
+    FMinimizedOldPos   : TRect;
+    FMinimizedPos      : TRect;
+    FOldWindowState    : TWindowState;
+    FRestrictFormSize  : boolean;
 
-    FMinimizedOldPos  : TRect;
-    FMinimizedPos     : TRect;
-    FOldWindowState   : TWindowState;
-    FRestrictFormSize : boolean;
-
-    FOnOldScrResize   : TArrayEx<TScreenResizeData>;
-
-    FWindowState      : TWindowState;
+    FWindowState       : TWindowState;
 
     function GetMinimisedPos: TPoint;
 
     procedure HandleMinimize(Sender: TObject);
     procedure HandleRestore(Sender: TObject);
     procedure HandleResize(Sender: TObject);
-    procedure HandleScreenResize(Sender: TObject; AWidth, AHeight: Integer);
 
     procedure ValidateWindowsSize;
 
     procedure OnSetWindowState(const Value: TWindowState);
 
     type
-      TMinimizedForms = TArrayEx<TUniForm>;
+      TMainFormData = record
+        MainForm       : uniGUIForm.TUniForm;
+        OnScreenResize : TScreenResizeEvent;
+      end;
+    class var MinimizedForms: TArrayEx<TUniForm>;
+    class var MainForms: TArrayEx<TMainFormData>;
 
-    class var MinimizedForms: TMinimizedForms;
+    class procedure HandleScreenResize(Sender: TObject; AWidth, AHeight: Integer);
 
     class constructor Create;
-    class destructor Destroy;
   public
 
     constructor Create(AOwner: TComponent); override;
@@ -78,49 +72,24 @@ begin
   TUniForm.MinimizedForms.DoFreeData:=False;
 end;
 
-class destructor TUniForm.Destroy;
+class procedure TUniForm.HandleScreenResize(Sender: TObject; AWidth, AHeight: Integer);
 begin
-  TUniForm.MinimizedForms.Clear;
-end;
+  if not Assigned(Sender) or TUniForm.MinimizedForms.IsEmpty then Exit;
 
-procedure TUniForm.HandleScreenResize(Sender: TObject; AWidth, AHeight: Integer);
-begin
-  try
-    if TUniForm.MinimizedForms.IsEmpty then begin
-      try
-        TUniForm(Sender).OnResize:=nil;
-      except
-      end;
-      Exit;
+  var MainForm:=TUniForm(Sender);
+  var UniApplication:=MainForm.UniApplication;
+
+  var MainFormOnScreenResize: TScreenResizeEvent := nil;
+
+  for var Form in TUniForm.MinimizedForms do begin
+    if Form.UniApplication=UniApplication then begin
+      Form.HandleResize(Form);
     end;
+  end;
 
-    var UA:=UniApplication;
-    for var Form in TUniForm.MinimizedForms do begin
-      try
-        if (Form.UniApplication=UA) and (Form<>Self) then begin
-          Form.HandleResize(Form);
-        end;
-      except
-        try
-          TUniForm.MinimizedForms.DeleteValues(Form);
-        except
-        end;
-      end;
-    end;
-
-    if Assigned(UniSession) then begin
-      var MainForm:=TUniForm(UniSession.UniMainModule.MainForm);
-
-      for var Item in FOnOldScrResize do begin
-        if Item.MainForm=MainForm then begin
-          Item.Event(Sender,AWidth,AHeight);
-        end;
-      end;
-    end;
-  except
-    try
-      TUniForm(Sender).OnResize:=nil;
-    except
+  for var FormData in TUniForm.MainForms do begin
+    if MainForm=FormData.MainForm then begin
+      FormData.OnScreenResize(Sender,AWidth,AHeight);
     end;
   end;
 end;
@@ -133,13 +102,13 @@ begin
 
   ButtonMinimize:=TUniToolItem(ToolButtons.Add);
   ButtonMinimize.ToolType:='minimize';
-  ButtonMinimize.Hint:='Ñâåðíóòü îêíî';
+  ButtonMinimize.Hint:='Свернуть окно';
   ButtonMinimize.Action:=TAction.Create(Self);
   ButtonMinimize.Action.OnExecute:=HandleMinimize;
 
   ButtonRestore:=TUniToolItem(ToolButtons.Add);
   ButtonRestore.ToolType:='maximize';
-  ButtonRestore.Hint:='Ðàçâåðíóòü îêíî';
+  ButtonRestore.Hint:='Развернуть окно';
   ButtonRestore.Action:=TAction.Create(Self);
   ButtonRestore.Action.OnExecute:=HandleRestore;
 
@@ -147,29 +116,50 @@ begin
 
   FWindowState:=inherited WindowState;
 
-  var MainForm:=TUniForm(UniSession.UniMainModule.MainForm);
-  if Assigned(MainForm.OnScreenResize) then begin
-    var Found:=False;
-    for var Item in FOnOldScrResize do begin
-      if Item.MainForm=MainForm then begin
-        Found:=True;
-        Break;
+  if Assigned(UniSession) then begin
+    var MainForm:=TUniForm(UniSession.UniMainModule.MainForm);
+    if Assigned(MainForm) and Assigned(MainForm.OnScreenResize) then begin
+      var Found:=False;
+      for var FormData in TUniForm.MainForms do begin
+        if MainForm=FormData.MainForm then begin
+          Found:=True;
+          Break;
+        end;
       end;
-    end;
-    if not Found then begin
-      var Item: TScreenResizeData;
-      Item.MainForm:=MainForm;
-      Item.Event:=MainForm.OnScreenResize;
-      FOnOldScrResize.Add(Item);
+      if not Found then begin
+        var FormData: TMainFormData;
+        FormData.MainForm:=MainForm;
+        FormData.OnScreenResize:=MainForm.OnScreenResize;
+        TUniForm.MainForms.Add(FormData);
+      end;
+      MainForm.OnScreenResize:=HandleScreenResize;
     end;
   end;
-  MainForm.OnScreenResize:=HandleScreenResize;
 end;
 
 destructor TUniForm.Destroy;
 begin
   try
-    OnScreenResize:=nil;
+    var CurMainForm:=UniSession.UniMainModule.MainForm;
+
+    var Found:=False;
+    for var Form in TUniForm.MinimizedForms do begin
+      if Form=Self then Continue;
+      if Form.UniSession.UniMainModule.MainForm=CurMainForm then begin
+        Found:=True;
+        Break;
+      end;
+    end;
+
+    if not Found then begin
+      for var i:=TUniForm.MainForms.High downto 0 do begin
+        if CurMainForm=TUniForm.MainForms[i].MainForm then begin
+          TUniForm.MainForms.Delete(i);
+          Break;
+        end;
+      end;
+    end;
+
     ButtonMinimize.Action.Free;
     ButtonRestore.Action.Free;
     TUniForm.MinimizedForms.DeleteValues(Self);
@@ -224,7 +214,7 @@ begin
 
   ButtonMinimize.Visible:=False;
   ButtonRestore.ToolType:='restore';
-  ButtonRestore.Hint:='Âîññòàíîâèòü îêíî';
+  ButtonRestore.Hint:='Восстановить окно';
 end;
 
 procedure TUniForm.HandleRestore(Sender: TObject);
@@ -250,7 +240,7 @@ begin
 
     ButtonMinimize.Visible:=True;
     ButtonRestore.ToolType:='restore';
-    ButtonRestore.Hint:='Âîññòàíîâèòü îêíî';
+    ButtonRestore.Hint:='Восстановить окно';
   end else begin
     if Assigned(FOnRestore) then begin
       FOnRestore(Self);
@@ -264,7 +254,7 @@ begin
 
     ButtonMinimize.Visible:=True;
     ButtonRestore.ToolType:='maximize';
-    ButtonRestore.Hint:='Ðàçâåðíóòü îêíî';
+    ButtonRestore.Hint:='Развернуть окно';
   end;
 end;
 
@@ -318,4 +308,3 @@ end;
 
 
 end.
-
