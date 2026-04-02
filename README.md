@@ -10,7 +10,7 @@ unit MyForm;
 interface
 
 uses
-   ..., UniMinimizedForm;
+  UniMinimizedForm, ...;
 ```
 
 
