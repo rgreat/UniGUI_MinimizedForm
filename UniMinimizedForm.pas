@@ -4,7 +4,7 @@ interface
 
 uses
   Types, Classes, SysUtils, Vcl.Forms, uniGUITypes, uniGUIServer, uniGUIApplication, uniGUIClasses, uniGUIForm,
-  System.Actions, Vcl.ActnList, ArrayEx;
+  System.Actions, Vcl.ActnList, Indexes;
 
 
 type
@@ -26,6 +26,8 @@ type
 
     FWindowState       : TWindowState;
 
+    FBaseAjaxEvent     : TUniAjaxEvent;
+
     function GetMinimisedPos: TPoint;
 
     procedure HandleMinimize(Sender: TObject);
@@ -35,6 +37,7 @@ type
     procedure ValidateWindowsSize;
 
     procedure OnSetWindowState(const Value: TWindowState);
+    procedure OnSetAjaxEvent(const Value: TUniAjaxEvent);
 
     type
       TMainFormData = record
@@ -47,11 +50,16 @@ type
     class procedure HandleScreenResize(Sender: TObject; AWidth, AHeight: Integer);
 
     class constructor Create;
-  public
 
+  public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+
+  protected
+    procedure DoAjaxEvent(Sender: TComponent; EventName: string; Params: TUniStrings);
+    procedure Loaded; override;
   published
+    property OnAjaxEvent: TUniAjaxEvent read FBaseAjaxEvent write OnSetAjaxEvent;
     property OnMinimize: TNotifyEvent read FOnMinimize write FOnMinimize;
     property OnRestore: TNotifyEvent read FOnRestore write FOnRestore;
     property OnMaximize: TNotifyEvent read FOnMaximize write FOnMaximize;
@@ -69,7 +77,7 @@ uses UniGUIVars, System.Math, System.UITypes;
 class constructor TUniForm.Create;
 begin
   TUniForm.MinimizedForms.Clear;
-  TUniForm.MinimizedForms.DoFreeData:=False;
+  TUniForm.MinimizedForms.OwnValues:=False;
 end;
 
 class procedure TUniForm.HandleScreenResize(Sender: TObject; AWidth, AHeight: Integer);
@@ -102,35 +110,38 @@ begin
 
   ButtonMinimize:=TUniToolItem(ToolButtons.Add);
   ButtonMinimize.ToolType:='minimize';
-  ButtonMinimize.Hint:='РЎРІРµСЂРЅСѓС‚СЊ РѕРєРЅРѕ';
+  ButtonMinimize.Hint:='Свернуть окно';
   ButtonMinimize.Action:=TAction.Create(Self);
   ButtonMinimize.Action.OnExecute:=HandleMinimize;
 
   ButtonRestore:=TUniToolItem(ToolButtons.Add);
   ButtonRestore.ToolType:='maximize';
-  ButtonRestore.Hint:='Р Р°Р·РІРµСЂРЅСѓС‚СЊ РѕРєРЅРѕ';
+  ButtonRestore.Hint:='Развернуть окно';
   ButtonRestore.Action:=TAction.Create(Self);
   ButtonRestore.Action.OnExecute:=HandleRestore;
 
   TUniForm.MinimizedForms.AddUnique(Self);
 
   FWindowState:=inherited WindowState;
+  inherited OnAjaxEvent:=DoAjaxEvent;
 
   if Assigned(UniSession) then begin
     var MainForm:=TUniForm(UniSession.UniMainModule.MainForm);
-    if Assigned(MainForm) and Assigned(MainForm.OnScreenResize) then begin
-      var Found:=False;
-      for var FormData in TUniForm.MainForms do begin
-        if MainForm=FormData.MainForm then begin
-          Found:=True;
-          Break;
+    if Assigned(MainForm) then begin
+      if Assigned(MainForm.OnScreenResize) then begin
+        var Found:=False;
+        for var FormData in TUniForm.MainForms do begin
+          if MainForm=FormData.MainForm then begin
+            Found:=True;
+            Break;
+          end;
         end;
-      end;
-      if not Found then begin
-        var FormData: TMainFormData;
-        FormData.MainForm:=MainForm;
-        FormData.OnScreenResize:=MainForm.OnScreenResize;
-        TUniForm.MainForms.Add(FormData);
+        if not Found then begin
+          var FormData: TMainFormData;
+          FormData.MainForm:=MainForm;
+          FormData.OnScreenResize:=MainForm.OnScreenResize;
+          TUniForm.MainForms.Add(FormData);
+        end;
       end;
       MainForm.OnScreenResize:=HandleScreenResize;
     end;
@@ -214,7 +225,7 @@ begin
 
   ButtonMinimize.Visible:=False;
   ButtonRestore.ToolType:='restore';
-  ButtonRestore.Hint:='Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РѕРєРЅРѕ';
+  ButtonRestore.Hint:='Восстановить окно';
 end;
 
 procedure TUniForm.HandleRestore(Sender: TObject);
@@ -240,7 +251,7 @@ begin
 
     ButtonMinimize.Visible:=True;
     ButtonRestore.ToolType:='restore';
-    ButtonRestore.Hint:='Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РѕРєРЅРѕ';
+    ButtonRestore.Hint:='Восстановить окно';
   end else begin
     if Assigned(FOnRestore) then begin
       FOnRestore(Self);
@@ -254,7 +265,7 @@ begin
 
     ButtonMinimize.Visible:=True;
     ButtonRestore.ToolType:='maximize';
-    ButtonRestore.Hint:='Р Р°Р·РІРµСЂРЅСѓС‚СЊ РѕРєРЅРѕ';
+    ButtonRestore.Hint:='Развернуть окно';
   end;
 end;
 
@@ -277,11 +288,15 @@ begin
 end;
 
 procedure TUniForm.ValidateWindowsSize;
+const
+  MinBorder = 30;
 begin
-  if Left+Width>UniApplication.ScreenWidth then Left:=UniApplication.ScreenWidth-Width;
+  if Left>UniApplication.ScreenWidth-MinBorder then Left:=UniApplication.ScreenWidth-MinBorder;
   if Top+Height>UniApplication.ScreenHeight then Top:=UniApplication.ScreenHeight-Height;
-  if Left<0 then Left:=0;
+
+  if Left+Width<MinBorder then Left:=MinBorder-Width;
   if Top<0 then Top:=0;
+
   if FRestrictFormSize then begin
     if Width>UniApplication.ScreenWidth then Width:=UniApplication.ScreenWidth;
     if Height>UniApplication.ScreenHeight then Height:=UniApplication.ScreenHeight;
@@ -306,5 +321,57 @@ begin
   end;
 end;
 
+procedure TUniForm.OnSetAjaxEvent(const Value: TUniAjaxEvent);
+begin
+  FBaseAjaxEvent:=Value;
+end;
+
+procedure TUniForm.DoAjaxEvent(Sender: TComponent; EventName: string; Params: TUniStrings);
+begin
+  if EventName='HeaderDblClick' then begin
+    case WindowState of
+      TWindowState.wsNormal: WindowState:=TWindowState.wsMaximized;
+      TWindowState.wsMinimized: WindowState:=TWindowState.wsNormal;
+      TWindowState.wsMaximized: WindowState:=TWindowState.wsNormal;
+    end;
+  end;
+
+  if EventName='move' then begin
+    HandleResize(Self);
+  end;
+
+  if Assigned(FBaseAjaxEvent) then begin
+    FBaseAjaxEvent(Sender,EventName,Params);
+  end;
+end;
+
+procedure TUniForm.Loaded;
+begin
+  inherited;
+
+  var JS:=ClientEvents.ExtEvents.Values['window.boxready'];
+
+  if JS<>'' then begin
+    var P:=JS.LastIndexOf('}');
+    if P>0 then begin
+      JS:=Copy(JS,1,P-1)+#13#10+
+          '  sender.header.el.on(''dblclick'', function(){'#13#10+
+          '    ajaxRequest(sender, ''HeaderDblClick'', []);'#13#10+
+          '  });'#13#10+
+          Copy(JS,P+1,Length(JS)-P);
+    end;
+  end else begin
+    JS:='function window.boxready(sender, width, height, eOpts)'#13#10+
+        '{'#13#10+
+        '  sender.header.el.on(''dblclick'', function(){'#13#10+
+        '    ajaxRequest(sender, ''HeaderDblClick'', []);'#13#10+
+        '  });'+
+        #13#10'}';
+  end;
+
+  ClientEvents.ExtEvents.Values['window.boxready']:=JS;
+end;
 
 end.
+
+
