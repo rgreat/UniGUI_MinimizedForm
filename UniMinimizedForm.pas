@@ -4,7 +4,7 @@ interface
 
 uses
   Types, Classes, SysUtils, Vcl.Forms, uniGUITypes, uniGUIServer, uniGUIApplication, uniGUIClasses, uniGUIForm,
-  System.Actions, Vcl.ActnList, ArrayEx;
+  System.Actions, Vcl.ActnList, Indexes;
 
 
 type
@@ -41,8 +41,8 @@ type
 
     type
       TMainFormData = record
-        MainForm       : uniGUIForm.TUniForm;
-        OnScreenResize : TScreenResizeEvent;
+        MainForm           : uniGUIForm.TUniForm;
+        OnBaseScreenResize : TScreenResizeEvent;
       end;
     class var MinimizedForms: TArrayEx<TUniForm>;
     class var MainForms: TArrayEx<TMainFormData>;
@@ -87,8 +87,6 @@ begin
   var MainForm:=TUniForm(Sender);
   var UniApplication:=MainForm.UniApplication;
 
-  var MainFormOnScreenResize: TScreenResizeEvent := nil;
-
   for var Form in TUniForm.MinimizedForms do begin
     if Form.UniApplication=UniApplication then begin
       Form.HandleResize(Form);
@@ -96,8 +94,10 @@ begin
   end;
 
   for var FormData in TUniForm.MainForms do begin
-    if MainForm=FormData.MainForm then begin
-      FormData.OnScreenResize(Sender,AWidth,AHeight);
+    if (MainForm=FormData.MainForm) and
+       Assigned(FormData.OnBaseScreenResize) and
+       (@FormData.OnBaseScreenResize<>@TUniForm.HandleScreenResize) then begin
+      FormData.OnBaseScreenResize(Sender,AWidth,AHeight);
     end;
   end;
 end;
@@ -110,13 +110,13 @@ begin
 
   ButtonMinimize:=TUniToolItem(ToolButtons.Add);
   ButtonMinimize.ToolType:='minimize';
-  ButtonMinimize.Hint:='Ã‘Ã¢Ã¥Ã°Ã­Ã³Ã²Ã¼ Ã®ÃªÃ­Ã®';
+  ButtonMinimize.Hint:='Ñâåðíóòü îêíî';
   ButtonMinimize.Action:=TAction.Create(Self);
   ButtonMinimize.Action.OnExecute:=HandleMinimize;
 
   ButtonRestore:=TUniToolItem(ToolButtons.Add);
   ButtonRestore.ToolType:='maximize';
-  ButtonRestore.Hint:='ÃÃ Ã§Ã¢Ã¥Ã°Ã­Ã³Ã²Ã¼ Ã®ÃªÃ­Ã®';
+  ButtonRestore.Hint:='Ðàçâåðíóòü îêíî';
   ButtonRestore.Action:=TAction.Create(Self);
   ButtonRestore.Action.OnExecute:=HandleRestore;
 
@@ -139,7 +139,7 @@ begin
         if not Found then begin
           var FormData: TMainFormData;
           FormData.MainForm:=MainForm;
-          FormData.OnScreenResize:=MainForm.OnScreenResize;
+          FormData.OnBaseScreenResize:=MainForm.OnScreenResize;
           TUniForm.MainForms.Add(FormData);
         end;
       end;
@@ -225,7 +225,7 @@ begin
 
   ButtonMinimize.Visible:=False;
   ButtonRestore.ToolType:='restore';
-  ButtonRestore.Hint:='Ã‚Ã®Ã±Ã±Ã²Ã Ã­Ã®Ã¢Ã¨Ã²Ã¼ Ã®ÃªÃ­Ã®';
+  ButtonRestore.Hint:='Âîññòàíîâèòü îêíî';
 end;
 
 procedure TUniForm.HandleRestore(Sender: TObject);
@@ -251,7 +251,7 @@ begin
 
     ButtonMinimize.Visible:=True;
     ButtonRestore.ToolType:='restore';
-    ButtonRestore.Hint:='Ã‚Ã®Ã±Ã±Ã²Ã Ã­Ã®Ã¢Ã¨Ã²Ã¼ Ã®ÃªÃ­Ã®';
+    ButtonRestore.Hint:='Âîññòàíîâèòü îêíî';
   end else begin
     if Assigned(FOnRestore) then begin
       FOnRestore(Self);
@@ -265,7 +265,7 @@ begin
 
     ButtonMinimize.Visible:=True;
     ButtonRestore.ToolType:='maximize';
-    ButtonRestore.Hint:='ÃÃ Ã§Ã¢Ã¥Ã°Ã­Ã³Ã²Ã¼ Ã®ÃªÃ­Ã®';
+    ButtonRestore.Hint:='Ðàçâåðíóòü îêíî';
   end;
 end;
 
@@ -292,7 +292,7 @@ const
   MinBorder = 30;
 begin
   if Left>UniApplication.ScreenWidth-MinBorder then Left:=UniApplication.ScreenWidth-MinBorder;
-  if Top+Height>UniApplication.ScreenHeight then Top:=UniApplication.ScreenHeight-Height;
+  if Top>UniApplication.ScreenHeight-MinBorder then Top:=UniApplication.ScreenHeight-MinBorder;
 
   if Left+Width<MinBorder then Left:=MinBorder-Width;
   if Top<0 then Top:=0;
