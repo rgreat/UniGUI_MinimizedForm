@@ -4,7 +4,7 @@ interface
 
 uses
   Types, Classes, SysUtils, Vcl.Forms, uniGUITypes, uniGUIServer, uniGUIApplication, uniGUIClasses, uniGUIForm,
-  System.Actions, Vcl.ActnList, Indexes;
+  System.Actions, Vcl.ActnList, ArrayEx;
 
 
 type
@@ -110,13 +110,13 @@ begin
 
   ButtonMinimize:=TUniToolItem(ToolButtons.Add);
   ButtonMinimize.ToolType:='minimize';
-  ButtonMinimize.Hint:='Свернуть окно';
+  ButtonMinimize.Hint:='Г‘ГўГҐГ°Г­ГіГІГј Г®ГЄГ­Г®';
   ButtonMinimize.Action:=TAction.Create(Self);
   ButtonMinimize.Action.OnExecute:=HandleMinimize;
 
   ButtonRestore:=TUniToolItem(ToolButtons.Add);
   ButtonRestore.ToolType:='maximize';
-  ButtonRestore.Hint:='Развернуть окно';
+  ButtonRestore.Hint:='ГђГ Г§ГўГҐГ°Г­ГіГІГј Г®ГЄГ­Г®';
   ButtonRestore.Action:=TAction.Create(Self);
   ButtonRestore.Action.OnExecute:=HandleRestore;
 
@@ -225,7 +225,7 @@ begin
 
   ButtonMinimize.Visible:=False;
   ButtonRestore.ToolType:='restore';
-  ButtonRestore.Hint:='Восстановить окно';
+  ButtonRestore.Hint:='Г‚Г®Г±Г±ГІГ Г­Г®ГўГЁГІГј Г®ГЄГ­Г®';
 end;
 
 procedure TUniForm.HandleRestore(Sender: TObject);
@@ -251,7 +251,7 @@ begin
 
     ButtonMinimize.Visible:=True;
     ButtonRestore.ToolType:='restore';
-    ButtonRestore.Hint:='Восстановить окно';
+    ButtonRestore.Hint:='Г‚Г®Г±Г±ГІГ Г­Г®ГўГЁГІГј Г®ГЄГ­Г®';
   end else begin
     if Assigned(FOnRestore) then begin
       FOnRestore(Self);
@@ -265,7 +265,7 @@ begin
 
     ButtonMinimize.Visible:=True;
     ButtonRestore.ToolType:='maximize';
-    ButtonRestore.Hint:='Развернуть окно';
+    ButtonRestore.Hint:='ГђГ Г§ГўГҐГ°Г­ГіГІГј Г®ГЄГ­Г®';
   end;
 end;
 
